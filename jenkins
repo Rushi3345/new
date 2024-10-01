@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+    environment {
+        DOCKER_CREDENTIALS_ID = 'rushikesh3345' // Replace with your Docker Hub credentials ID
+        DOCKER_IMAGE = 'rushikesh3345/new:latest' // Change to your Docker Hub repository
+        CONTAINER_NAME = 'MyContainer'
+        BASE_PORT = 8024
+    }
+    stages {
+        stage('Clone Repository') {
+            steps {
+                git 'https://github.com/Rushi3345/new.git' // Replace with your repo URL
+            }
+        }
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    docker.build(DOCKER_IMAGE)
+                }
+            }
+        }
+        stage('Push Docker Image') {
+            steps {
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', DOCKER_CREDENTIALS_ID) {
+                        docker.image(DOCKER_IMAGE).push()
+                    }
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                script {
+                    // Stop and remove the existing container if it exists
+                    bat """
+                        FOR /F "tokens=*" %%i IN ('docker ps -q -f "name=${CONTAINER_NAME}"') DO (
+                            docker stop %%i  
+                            docker rm -f %%i 
+                        )
+                    """
+
+                    // Check if the base port is available
+                    def port = BASE_PORT
+                    while (true) {
+                        def isPortUsed = bat(script: "netstat -ano | findstr :${port}", returnStatus: true) == 0
+                        if (!isPortUsed) {
+                            break
+                        }
+                        port++
+                    }
+
+                    // Run the new container on the available port
+                    bat "docker run -d --name ${CONTAINER_NAME} -p ${port}:80 ${DOCKER_IMAGE}"
+                    echo "New container deployed on port: ${port}"
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean up any dangling images
+            script {
+                bat "docker image prune -f"
+            }
+        }
+    }
+}
