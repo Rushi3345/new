@@ -1,2 +1,2 @@
 FROM httpd
-COPY about.html /usr/local/apache2/htdocs/
+COPY class.html /usr/local/apache2/htdocs/
